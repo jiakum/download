@@ -45,6 +45,12 @@ static int write_socket(struct io_context *ctx, char *buf, int len)
     return len;
 }
 
+static void free_io_context(struct io_context * ioc)
+{
+    close(ioc->fd);
+    free(ioc);
+}
+
 struct io_context *fd_to_io_context(int fd, int io_type) 
 {
     struct io_context *ctx = malloc(sizeof(*ctx));
@@ -58,6 +64,7 @@ struct io_context *fd_to_io_context(int fd, int io_type)
         ctx->read = read_socket;
         ctx->write = write_socket;
     }
+    ctx->close = free_io_context;
 
     return ctx;
 }

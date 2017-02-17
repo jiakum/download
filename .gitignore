@@ -10,6 +10,9 @@
 /tags
 /*.patch
 /*.diff
+download
+/client/Makefile
+/server/Makefile
 *.orig
 *.rej
 .*.swp

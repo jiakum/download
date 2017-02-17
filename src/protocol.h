@@ -5,7 +5,7 @@
 /* all data is little endian */
 
 #include <stdint.h>
-#define RCPACKET_MAXPAYLOADSIZE (1024)
+#define RCPACKET_MAXPAYLOADSIZE (1024 + 256)
 
 #define RCPACKET_HEAD_LEN   12
 struct DwPacket {
@@ -115,15 +115,14 @@ struct PackageInfo {
 
 /*
  * command : RCCOMMAND_FILEDATA_MD5
+ * payload :  struct RCFileInfo info
+ * sent by client
+ *   request MD5 for data that begins from info.offset and its length is info.len 
+ *
+ * response :  
  * sent by server
  * command payload : struct RCFileInfo + MD5.
- * MD5 is a ascii string.
  *
- * response payload : struct RCFileInfo + "OK"
- * sent by client
- * return "FAILED" if md5 check wrong.
- * ATTENTION!!! if md5 check wrong , the client will send
- *   command RCCOMMAND_TRANS_FILEDATA again with the same RCFileInfo.
  */
 #define RCCOMMAND_FILEDATA_MD5 (RCCOMMAND_REQUEST_NEWFILE + 0x02)
 

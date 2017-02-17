@@ -14,7 +14,7 @@ struct DwPacketContext *dw_init_packet(struct io_context *ioc)
     struct DwPacketContext *context = malloc(sizeof(*context));
     char *buf = malloc(sizeof(struct DwPacket) * 16);
     struct DwPacket *dp = malloc(sizeof(*dp));
-    struct DwPacket *txdp = malloc(sizeof(*dp));
+    struct DwPacket *txdp = malloc(sizeof(*txdp));
 
     if(!context || !buf || !dp || !txdp) {
         printf("malloc failed!!!\n");
@@ -22,6 +22,7 @@ struct DwPacketContext *dw_init_packet(struct io_context *ioc)
     }
 
     if(!ioc->read || !ioc->write) {
+        free(buf); free(dp); free(txdp); free(context);
         printf("%s, need read and write function for io context!\n", __func__);
         return NULL;
     }
@@ -30,9 +31,28 @@ struct DwPacketContext *dw_init_packet(struct io_context *ioc)
     context->buf = context->start = context->pos = buf;
     context->end = context->start + sizeof(struct DwPacket) * 16;
     context->dp = dp;
+    context->txdp = txdp;
     context->ioc = ioc;
+    printf("%p, %p, %p, %p\n", context, dp, txdp, ioc); fflush(stdout);
+    printf("%p, %p, %p, %p\n", context->buf, context->start, context->end, context->pos); fflush(stdout);
 
     return context;
+}
+
+void dw_free_packet(struct DwPacketContext *dpctx)
+{
+    printf("%p, %p, %p, %p\n", dpctx, dpctx->dp, dpctx->txdp, dpctx->ioc); fflush(stdout);
+    printf("%p, %p, %p, %p\n", dpctx->buf, dpctx->start, dpctx->end, dpctx->pos); fflush(stdout);
+    dpctx->ioc->close(dpctx->ioc);
+    printf("%s, %d\n", __func__, __LINE__); fflush(stdout);
+    free(dpctx->start);
+    printf("%s, %d\n", __func__, __LINE__); fflush(stdout);
+    free(dpctx->dp);
+    printf("%s, %d\n", __func__, __LINE__); fflush(stdout);
+    free(dpctx->txdp);
+    printf("%s, %d\n", __func__, __LINE__); fflush(stdout);
+    free(dpctx);
+    printf("%s, %d\n", __func__, __LINE__); fflush(stdout);
 }
 
 static int read_cached(struct DwPacketContext *ctx, struct io_context *ioc, char *buf, int len)
@@ -54,7 +74,7 @@ retry:
         ctx->buf = ctx->pos;
     }
 
-    if(ctx->buf == ctx->end)
+    if(ctx->buf == ctx->end - 1)
         ctx->buf = ctx->pos = ctx->start;
     ret = ioc->read(ioc, ctx->pos, ctx->end - ctx->pos);
     if(ret < 0)
@@ -120,10 +140,11 @@ retry:
 
 success:
     *packet = dp;
+    ctx->len = 0;
     return len;
 }
 
-int dw_write_command(struct DwPacketContext *ctx, int cmd, char *data, int len)
+int dw_write_command_data(struct DwPacketContext *ctx, int cmd, char *data, int len)
 {
     struct DwPacket *dp = ctx->txdp;
 
@@ -135,6 +156,7 @@ int dw_write_command(struct DwPacketContext *ctx, int cmd, char *data, int len)
     dp->flags  = 0x0;
     dp->cmd    = cmd & 0x0ffff;
     dp->len    = len;
+    dp->seq++;
     dp->crc[0] = calc_crc8((unsigned char *)dp, RCPACKET_HEAD_LEN - 2);
     dp->crc[1] = ~dp->crc[0];
 

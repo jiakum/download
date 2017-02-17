@@ -15,8 +15,9 @@ enum IO_TYPE {
 struct io_context {
     int fd;
 
-    int (*read)(struct io_context *io, char *buf, int len);
-    int (*write)(struct io_context *io, char *buf, int len);
+    int (*read)(struct io_context *ioc, char *buf, int len);
+    int (*write)(struct io_context *ioc, char *buf, int len);
+    void (*close)(struct io_context *ioc);
 };
 struct io_context *fd_to_io_context(int fd, int io_type);
 
