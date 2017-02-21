@@ -37,6 +37,7 @@ static int proc_cmd(struct DwClient *client, struct DwPacket *dp)
 {
     int cmd = dp->cmd;
 
+    //printf("recieve command:0x%x\n", cmd);
     switch(cmd)
     {
     case RCCOMMAND_REQUEST_NEWFILE:
@@ -57,7 +58,6 @@ static int proc_cmd(struct DwClient *client, struct DwPacket *dp)
         printf("unkown command:0x%x\n", cmd);
         break;
     }
-    printf("%s, command:0x%x\n", __func__, cmd);
 
     return 1;
 }

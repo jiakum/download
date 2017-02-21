@@ -7,6 +7,7 @@
 
 #include "protocol.h"
 #include "packet.h"
+#include "common.h"
 #include "io.h"
 
 struct DwPacketContext *dw_init_packet(struct io_context *ioc)
@@ -33,26 +34,19 @@ struct DwPacketContext *dw_init_packet(struct io_context *ioc)
     context->dp = dp;
     context->txdp = txdp;
     context->ioc = ioc;
-    printf("%p, %p, %p, %p\n", context, dp, txdp, ioc); fflush(stdout);
-    printf("%p, %p, %p, %p\n", context->buf, context->start, context->end, context->pos); fflush(stdout);
+    printf("%s,%p, %p, %p, %p, %p\n", __func__, context, dp, txdp, ioc, buf); fflush(stdout);
 
     return context;
 }
 
 void dw_free_packet(struct DwPacketContext *dpctx)
 {
-    printf("%p, %p, %p, %p\n", dpctx, dpctx->dp, dpctx->txdp, dpctx->ioc); fflush(stdout);
-    printf("%p, %p, %p, %p\n", dpctx->buf, dpctx->start, dpctx->end, dpctx->pos); fflush(stdout);
+    printf("%s,%p, %p, %p, %p, %p\n", __func__, dpctx, dpctx->dp, dpctx->txdp, dpctx->ioc, dpctx->buf); fflush(stdout);
     dpctx->ioc->close(dpctx->ioc);
-    printf("%s, %d\n", __func__, __LINE__); fflush(stdout);
     free(dpctx->start);
-    printf("%s, %d\n", __func__, __LINE__); fflush(stdout);
     free(dpctx->dp);
-    printf("%s, %d\n", __func__, __LINE__); fflush(stdout);
     free(dpctx->txdp);
-    printf("%s, %d\n", __func__, __LINE__); fflush(stdout);
     free(dpctx);
-    printf("%s, %d\n", __func__, __LINE__); fflush(stdout);
 }
 
 static int read_cached(struct DwPacketContext *ctx, struct io_context *ioc, char *buf, int len)
@@ -74,7 +68,7 @@ retry:
         ctx->buf = ctx->pos;
     }
 
-    if(ctx->buf == ctx->end - 1)
+    if(ctx->buf == ctx->end)
         ctx->buf = ctx->pos = ctx->start;
     ret = ioc->read(ioc, ctx->pos, ctx->end - ctx->pos);
     if(ret < 0)
@@ -123,7 +117,7 @@ retry:
 
         crc = calc_crc8((unsigned char *)buf, len - 2);
         if(crc != buf[len -2] || buf[len - 1] != ~crc) {
-            printf("%s,crc check failed\n", __func__);
+            WARN_ONCE("%s,crc check failed\n", __func__);
             memcpy(buf, buf + 2, len - 2);
             ctx->len -= 2;
             goto retry;

@@ -5,21 +5,11 @@ QT      =
 TARGET = download
 TEMPLATE = app
 
-SOURCES +=  ../src/packet.c \
-            ../src/crc8.c \
-            ../src/io.c \
-            client.c \
-            ../src/timer.c \
-            ../src/utils.c \
+SOURCES +=  client.c \
             main.c
 
+HEADERS += 
 
-HEADERS +=  ../src/protocol.h \
-            ../src/packet.h \
-            ../src/io.h \
-            ../src/common.h \
-            ../src/list.h \
-            ../src/utils.h \
-            ../src/timer.h
+include(../common.pro)
 
 INCLUDEPATH += ../src/

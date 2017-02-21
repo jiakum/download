@@ -16,6 +16,7 @@
 #include "io.h"
 #include "utils.h"
 #include "list.h"
+#include "bitmap.h"
 
 struct server_client {
     int fd;
@@ -142,14 +143,6 @@ static int new_client(struct DwServer *server)
         disconnect_client(client);
         return -1;
     }
-
-#if 0
-    dw_write_command(client->dpctx, RCCOMMAND_REQUEST_NEWFILE);
-    dw_write_command(client->dpctx, RCCOMMAND_REQUEST_NEWFILE);
-    dw_write_command(client->dpctx, RCCOMMAND_REQUEST_NEWFILE);
-    dw_write_command(client->dpctx, RCCOMMAND_REQUEST_NEWFILE);
-    dw_write_command(client->dpctx, RCCOMMAND_REQUEST_NEWFILE);
-#endif
 
     return 0;
 }

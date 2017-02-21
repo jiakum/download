@@ -14,6 +14,20 @@ struct epoll_context {
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
 
+
+#define WARN_ONCE(format, ...) ({          \
+    static int __warned;     \
+    if (!__warned) {             \
+        printf(format, ##__VA_ARGS__);            \
+        __warned = 1;            \
+    } \
+})
+
+#define BUG_ON(condition) do { \
+        if(condition) \
+            printf("BUG:%s,%s,%d,condition:%s\n", __func__, __FILE__, __LINE__, #condition); \
+    } while(0) 
+
 #ifdef __cplusplus
 }
 #endif
