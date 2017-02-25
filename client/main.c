@@ -12,6 +12,7 @@
 #include <signal.h>
 
 #include "io.h"
+#include "log.h"
 #include "packet.h"
 #include "timer.h"
 #include "protocol.h"
@@ -28,12 +29,14 @@ static const struct init_proc programs[] = {
     INIT_PROC(init_client),
 };
 
-int main()
+int main(int argc, char *argv[])
 {
     int epfd, ret, i, delay = 100;
 
     signal(SIGPIPE, SIG_IGN);
     signal(SIGCHLD, SIG_IGN);
+
+    init_local_logger(argv[0]);
 
     if((epfd = epoll_create1(EPOLL_CLOEXEC)) < 0) {
         printf("epoll create failed!!\n");

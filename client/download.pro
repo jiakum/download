@@ -12,4 +12,4 @@ HEADERS +=
 
 include(../common.pro)
 
-INCLUDEPATH += ../src/
+INCLUDEPATH += ../src/ ../include/ ../

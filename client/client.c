@@ -14,6 +14,7 @@
 #include "timer.h"
 #include "packet.h"
 #include "io.h"
+#include "log.h"
 
 struct DwClient {
     int epfd, fd;
@@ -100,7 +101,6 @@ static int connect_server(struct timer *timer)
     struct epoll_event ev;
     int fd;
 
-    printf("%s\n", __func__);
     fd = socket(AF_INET, SOCK_STREAM  | SOCK_CLOEXEC, 0);
     if(fd < 0) {
         printf("create socket failed:%s!\n", strerror(errno));
@@ -111,7 +111,23 @@ static int connect_server(struct timer *timer)
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(1212);
     if(connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        printf("connect remote failed:%s!\n", strerror(errno));
+        int i;
+        for(i = 0;i < 1024;i++) {
+            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
+            rclog("client", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
+            rclog("server", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
+            rclog(__func__, RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
+            rclog(__FILE__, RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
+            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
+            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
+            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
+            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
+            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
+            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
+            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
+            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
+            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
+        }
         close(fd);
         goto retry;
     }
