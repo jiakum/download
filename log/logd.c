@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/epoll.h>
+#include <sys/poll.h>
 #include <signal.h>
 #include <errno.h>
 
@@ -34,11 +35,34 @@ struct log_server {
     struct hlist_head uhead;
 };
 
+#define LOGFILTER_HTABLE_SIZE_INBITS (4)
+#define LOGFILTER_HTABLE_SIZE (1 << LOGD_HTABLE_SIZE_INBITS)
+struct log_filter {
+    /* 1 indicate all is included except those in exhead.
+     * 0 indicate all is excluded except those in inhead.
+     * */
+    int all; 
+    struct hlist_head *exhead;
+    struct hlist_head *inhead;
+
+    int (*filter)(struct log_filter *lf, char *pro, char *group, int level);
+    void (*free)(struct log_filter *lf);
+};
+
+struct filter_str {
+    char pro[64], group[64];
+    int level;
+    struct hlist_node list;
+};
+
 struct log_client {
     struct log_file *file;
+    struct log_filter *filter;
     struct sockaddr_un from;
     struct hlist_node list;
 };
+
+static const char *levelstr[] = {"EMERG", "ALERT", "CRITICAL", "ERROR", "WARNING", "NOTICE", "INFO", "DEBUG"};
 
 static inline uint32_t hashfn(char *p, char *g)
 {
@@ -46,11 +70,173 @@ static inline uint32_t hashfn(char *p, char *g)
     return hash_32(val, LOGD_HTABLE_SIZE_INBITS);
 }
 
+static inline uint32_t hashfilter(char *p)
+{
+    uint32_t val = (p[0]) | (p[1] << 8) | (p[0] << 16) | (p[1] << 24);
+    return hash_32(val, LOGD_HTABLE_SIZE_INBITS);
+}
+
+static int get_pgl(char *src, char *pro, char *group, int *level)
+{
+    int i = RCLOG_DEFAULT_LEVEL;
+
+    while(*src && *src != '/')
+        *pro++ = *src++;
+    *pro = '\0';
+
+    src++;
+    while(*src && *src != '/')
+        *group++ = *src++;
+    *group = '\0';
+
+    if(!*src) {
+        char str[16];
+        int len;
+
+        len = snprintf(str, sizeof(str), "%s", src);
+        for(i = 0;i < len;i++)
+            str[i] = toupper(str[i]);
+
+        for(i = 0;i < (int)ARRAY_SIZE(levelstr);i++) {
+            if(!strcmp(str, levelstr[i]))
+                break;
+        }
+    }
+
+    *level = i;
+
+    return 0;
+}
+
+static int filter_log(struct log_filter *filter, char *pro, char *group, int level)
+{
+    struct filter_str *pos;
+    struct hlist_node *n;
+    int key = hashfilter(pro);
+
+    if(filter->all) {
+        hlist_for_each_entry(pos, n, &filter->exhead[key], list) {
+            if(!strcmp(pro, pos->pro)) {
+                if((!pos->group[0] || !strcmp(group, pos->group))
+                     && (level <= pos->level))
+                    return -1;
+                return 0;
+            }
+        }
+        
+        return 0;
+    } else {
+        hlist_for_each_entry(pos, n, &filter->inhead[key], list) {
+            if(!strcmp(pro, pos->pro)) {
+                if((!pos->group[0] || !strcmp(group, pos->group))
+                     && (level <= pos->level))
+                    return 0;
+                return -1;
+            }
+        }
+
+        return -1;
+    }
+}
+
+static void free_filter(struct log_filter *filter)
+{
+    struct filter_str *pos;
+    struct hlist_node *n, *tmp;
+    int key;
+
+    for(key = 0; key < LOGFILTER_HTABLE_SIZE; key++) {
+        hlist_for_each_entry_safe(pos, n, tmp, &filter->inhead[key], list) {
+            hlist_del(&pos->list);
+            free(pos);
+        }
+    }
+
+    for(key = 0; key < LOGFILTER_HTABLE_SIZE; key++) {
+        hlist_for_each_entry_safe(pos, n, tmp, &filter->exhead[key], list) {
+            hlist_del(&pos->list);
+            free(pos);
+        }
+    }
+
+    free(filter->exhead);
+    free(filter->inhead);
+    free(filter);
+}
+
+static struct log_filter *alloc_filter(char *command, int len)
+{
+    struct log_filter *filter = malloc(sizeof(*filter));
+    struct hlist_head *exhead = malloc(sizeof(struct hlist_head) * LOGFILTER_HTABLE_SIZE);
+    struct hlist_head *inhead = malloc(sizeof(struct hlist_head) * LOGFILTER_HTABLE_SIZE);
+    int i;
+    char *end = command + len;
+
+    if(!filter || !exhead || !inhead) {
+        printf("malloc log filter failed!!\n");
+        return NULL;
+    }
+    memset(filter, 0, sizeof(*filter));
+    for(i = 0;i < LOGFILTER_HTABLE_SIZE;i++) {
+        INIT_HLIST_HEAD(&exhead[i]);
+        INIT_HLIST_HEAD(&inhead[i]);
+    }
+
+    while(command < end) {
+        int key;
+
+        len = strlen(command);
+        if(len > (int)strlen("all=") && !strncmp(command, "all=", strlen("all="))) {
+            filter->all = strtol(command + strlen("all="), NULL, 10);
+        } else if(len > (int)strlen("ex") && !strncmp(command, "ex:", strlen("ex:"))) {
+            struct filter_str *fstr = malloc(sizeof(struct filter_str));
+            char *str = command + strlen("ex:");
+
+            if(!fstr) {
+                printf("malloc filter failed!!\n");
+                return NULL;
+            }
+            get_pgl(str, fstr->pro, fstr->group, &fstr->level);
+            printf("get pro:%s,group:%s,level:%d\n", fstr->pro, fstr->group, fstr->level);
+
+            key = hashfilter(str);
+            hlist_add_head(&fstr->list, &exhead[key]);
+        } else if(len > (int)strlen("in") && !strncmp(command, "in:", strlen("in:"))) {
+            struct filter_str *fstr = malloc(sizeof(struct filter_str));
+            char *str = command + strlen("in:");
+
+            if(!fstr) {
+                printf("malloc filter failed!!\n");
+                return NULL;
+            }
+            get_pgl(str, fstr->pro, fstr->group, &fstr->level);
+            printf("get pro:%s,group:%s,level:%d\n", fstr->pro, fstr->group, fstr->level);
+
+            key = hashfilter(str);
+            hlist_add_head(&fstr->list, &exhead[key]);
+        }
+        
+        command += len + 1;
+    }
+
+    filter->inhead = inhead;
+    filter->exhead = exhead;
+    filter->filter = filter_log;
+    filter->free   = free_filter;
+
+    return filter;
+}
+
 static void close_client(struct log_client *client)
 {
+    printf("%s,%s\n", __func__, client->from.sun_path);
     hlist_del(&client->list);
+
     if(client->file && client->file->close)
         client->file->close(client->file);
+
+    if(client->filter && client->filter->free)
+        client->filter->free(client->filter);
 
     free(client);
 }
@@ -81,7 +267,6 @@ static int parse_addr(struct sockaddr_un *from, char *program, char *group)
 
 static int parse_packet(struct log_server *server, struct sockaddr_un *from, unsigned char *buf, int len)
 {
-    static const char *levelstr[] = {"EMERG", "ALERT", "CRITICAL", "ERROR", "WARNING", "NOTICE", "INFO", "DEBUG"};
     struct log_client *client;
     struct hlist_head *head;
     struct hlist_node *n, *pos;
@@ -111,6 +296,7 @@ static int parse_packet(struct log_server *server, struct sockaddr_un *from, uns
             printf("%s, no memory!\n", __func__);
             return -ENOMEM;
         }
+        memset(client, 0, sizeof(*client));
 
         memcpy(&client->from, from, sizeof(client->from));
 
@@ -123,7 +309,7 @@ static int parse_packet(struct log_server *server, struct sockaddr_un *from, uns
             }
             hlist_add_head(&client->list, head);
         } else {
-            client->file = NULL;
+            client->filter = alloc_filter((char*)buf + 4, len - 4);
             hlist_add_head(&client->list, &server->uhead);
         }
     }
@@ -144,6 +330,9 @@ static int parse_packet(struct log_server *server, struct sockaddr_un *from, uns
         len += l;
         hlist_for_each_entry_safe(uc, pos, n, &server->uhead, list) {
             int left;
+
+            if(!uc->filter || uc->filter->filter(uc->filter, program, group, level) < 0)
+                continue;
 
             left = len;
             while(left > 0) {
@@ -324,10 +513,69 @@ static void usage(void)
 
 }
 
+extern int connect_logd(char *program, char *group);
+static int get_log_runtime(char *buf, int len)
+{
+    struct pollfd *entry = malloc(sizeof(*entry) * 16), *start = entry;
+    int fd = connect_logd("logd", "watch"), ret;
+
+    if(fd < 0) {
+        printf("connect server logd failed!\n");
+        return -1;
+    }
+
+    send(fd, buf, len, 0);
+
+    while(1) {
+        entry = start;
+        entry->fd = fd;
+        entry->events = POLLIN;
+        entry++;
+
+        do {
+            ret = poll(start, entry - start, 10);
+            if (ret < 0 && EINTR != errno && errno  != EAGAIN) {
+                printf("%s,fatal error, errno:%d\n", __func__, errno);
+                return -1;
+            }
+        } while (ret < 0);
+
+        entry = start;
+        if(entry->events & POLLIN) {
+            do {
+                ret = recv(fd, buf, RCLOG_MAX_PACKET_SIZE, 0);
+                if(ret < 0) {
+                    if(errno != EAGAIN && errno != EINTR)
+                        return -1;
+                    break;
+                } else if(ret == 0)
+                    return -1;
+                else {
+                    buf[ret] = 0;
+                    printf("%s", buf);
+                }
+            } while(ret > 0);
+        }
+    }
+
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     char *path = "/mnt/data/.logd/", *task = "getlog";
-    int i;
+    char *buf = malloc(RCLOG_MAX_PACKET_SIZE), *start = buf;
+    int i, len;
+
+    if(!buf) {
+        printf("malloc failed!\n");
+        return -1;
+    } else {
+        *buf++ = '$';
+        *buf++ = '#';
+        *buf++ = 'R';
+        *buf++ = 0xf0;
+    }
 
     signal(SIGPIPE, SIG_IGN);
     signal(SIGCHLD, SIG_IGN);
@@ -343,12 +591,28 @@ int main(int argc, char *argv[])
                 }
             } else
                 usage();
+        } else if(!strcmp(argv[i], "-all")) {
+            len = snprintf(buf, RCLOG_MAX_PACKET_SIZE - (buf - start), "all=1");
+            buf += len + 1;
+        } else if(!strcmp(argv[i], "-ex")) {
+            if(++i < argc) {
+                len = snprintf(buf, RCLOG_MAX_PACKET_SIZE - (buf - start), "ex:%s", argv[i]);
+                buf += len + 1;
+            } else
+                usage();
+        } else if(!strcmp(argv[i], "-in")) {
+            if(++i < argc) {
+                len = snprintf(buf, RCLOG_MAX_PACKET_SIZE - (buf - start), "in:%s", argv[i]);
+                buf += len + 1;
+            } else
+                usage();
         }
     }
 
     if(!strncmp(task, "start_server", strlen("start_server")))
-        start_server(path);
+        return  start_server(path);
     else if(!strncmp(task, "getlog", strlen("getlog"))) {
+        return get_log_runtime(start, buf - start);
     }
 
     return 0;

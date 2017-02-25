@@ -112,7 +112,7 @@ static int connect_server(struct timer *timer)
     addr.sin_port = htons(1212);
     if(connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         int i;
-        for(i = 0;i < 1024;i++) {
+        for(i = 0;i < 1;i++) {
             rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
             rclog("client", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
             rclog("server", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));

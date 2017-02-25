@@ -43,7 +43,7 @@ struct local_logger {
     struct hlist_node list;
 };
 
-static int connect_socket(char *program, char *group)
+int connect_logd(char *program, char *group)
 {
     int fd;
     struct sockaddr_un addr;
@@ -116,7 +116,7 @@ static int get_logd_connection(char *group)
             return -ENOMEM;
         }
 
-        fd = connect_socket(lhead.funname, group);
+        fd = connect_logd(lhead.funname, group);
         if(fd < 0) {
             free(logger);
             return -1;
@@ -182,7 +182,7 @@ failed:
         pthread_spin_unlock(&lhead.lock[key]);
 
         if(found)
-            logger->fd = connect_socket(lhead.funname, group);
+            logger->fd = connect_logd(lhead.funname, group);
 
         return 0;
     }
