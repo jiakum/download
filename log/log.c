@@ -13,12 +13,18 @@
 #include "timer.h"
 #include "log.h"
 
-static inline int sprint_prefix(char *ptr, int max, char *group, const char* level)
+static inline int fill_header(char *ptr, int level)
 {
-    int64_t ms = get_current_time();
-    int len;
+    int ms = (get_current_time() & 0x0FFFFFFFF);
+    int len = 0;
 
-    len = snprintf(ptr, max, "[%"PRId64".%d][%s][%s]", ms / 1000, (int)(ms % 1000), group, level);
+    ptr[len++] = '$';
+    ptr[len++] = '#';
+    ptr[len++] = 'L';
+    ptr[len++] = level & 0x0f;
+
+    *(int*)(ptr + len) = ms;
+    len += sizeof(ms);
 
     return len;
 }
@@ -26,17 +32,10 @@ static inline int sprint_prefix(char *ptr, int max, char *group, const char* lev
 extern int send_log(char *group, char *data, int len);
 void rc_log_default_callback(char* group, int level, const char* fmt, va_list vl)
 {
-    static const char *levelstr[] = {"EMERG", "ALERT", "CRITICAL", "ERROR", "WARNING", "NOTICE", "INFO", "DEBUG"};
     char line[RCLOG_MAX_PACKET_SIZE];
-    int len;
+    int len = 0;
 
-    if(level >= (int)(sizeof(levelstr)/sizeof(levelstr[0])))
-        return;
-
-    line[0] = level;
-    len = 1;
-
-    len += sprint_prefix(line + len, sizeof(line) - len, group, levelstr[level]);
+    len += fill_header(line + len, level);
 
     len += vsnprintf(line + len, sizeof(line) - len, fmt, vl);
 

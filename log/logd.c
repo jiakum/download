@@ -81,6 +81,7 @@ static int parse_addr(struct sockaddr_un *from, char *program, char *group)
 
 static int parse_packet(struct log_server *server, struct sockaddr_un *from, unsigned char *buf, int len)
 {
+    static const char *levelstr[] = {"EMERG", "ALERT", "CRITICAL", "ERROR", "WARNING", "NOTICE", "INFO", "DEBUG"};
     struct log_client *client;
     struct hlist_head *head;
     struct hlist_node *n, *pos;
@@ -88,7 +89,7 @@ static int parse_packet(struct log_server *server, struct sockaddr_un *from, uns
     int ret, key, found = 0;
 
     ret = parse_addr(from, program, group);
-    if(ret < 0) {
+    if(ret < 0 || buf[0] != '$' || buf[1] != '#') {
         printf("Illegal name:%s!!!\n", from->sun_path);
         return -ENOMEM;
     }
@@ -113,7 +114,7 @@ static int parse_packet(struct log_server *server, struct sockaddr_un *from, uns
 
         memcpy(&client->from, from, sizeof(client->from));
 
-        if(buf[0] < 0x80) {
+        if(buf[2] == 'L') {
             client->file = open_logfile(program, group);
             if(!client->file) {
                 printf("open new log file:%s failed!", from->sun_path);
@@ -127,11 +128,24 @@ static int parse_packet(struct log_server *server, struct sockaddr_un *from, uns
         }
     }
 
-    if(buf[0] < 0x80) {
+    if(buf[2] == 'L') {
         struct log_client *uc;
-        buf++; len--;
+        char str[RCLOG_MAX_PACKET_SIZE + 64];
+        int ms = *(int*)(buf + 4), l, level;
+        
+        level = buf[3] >= ARRAY_SIZE(levelstr) ? ARRAY_SIZE(levelstr) : buf[3];
+
+        buf += 8;
+        len -= 8;
+        l = snprintf(str, sizeof(str),"[%d.%d][%s][%s][%s]", ms / 1000, ms % 1000, program, group, levelstr[level]);
+        memcpy(str + l, buf, len);
+
+        buf = (unsigned char *)str;
+        len += l;
         hlist_for_each_entry_safe(uc, pos, n, &server->uhead, list) {
-            int left = len;
+            int left;
+
+            left = len;
             while(left > 0) {
                 ret = sendto(server->fd, buf + len - left, left, 0, 
                       (const struct sockaddr *)&uc->from, sizeof(struct sockaddr_un));
@@ -149,7 +163,7 @@ static int parse_packet(struct log_server *server, struct sockaddr_un *from, uns
             }
         }
 
-        if(client->file->write(client->file, (char*)buf, len) < 0)
+        if(client->file->write(client->file, (char*)str, len) < 0)
             close_client(client);
 
     } else {
@@ -312,7 +326,7 @@ static void usage(void)
 
 int main(int argc, char *argv[])
 {
-    char *path = "/mnt/data/.logd/", *task = NULL;
+    char *path = "/mnt/data/.logd/", *task = "getlog";
     int i;
 
     signal(SIGPIPE, SIG_IGN);
@@ -332,10 +346,10 @@ int main(int argc, char *argv[])
         }
     }
 
-    if(!task)
-        usage();
-    else if(!strncmp(task, "start_server", strlen("start_server")))
+    if(!strncmp(task, "start_server", strlen("start_server")))
         start_server(path);
+    else if(!strncmp(task, "getlog", strlen("getlog"))) {
+    }
 
     return 0;
 }

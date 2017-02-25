@@ -116,8 +116,6 @@ static int connect_server(struct timer *timer)
             rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
             rclog("client", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
             rclog("server", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
-            rclog(__func__, RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
-            rclog(__FILE__, RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
             rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
             rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
             rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));

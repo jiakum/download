@@ -31,6 +31,7 @@ static inline int hashfn(char *name)
 
 struct log_head {
     char funname[64];
+    int init;
     struct hlist_head *heads;
     pthread_spinlock_t *lock;
 };
@@ -86,6 +87,11 @@ static int get_logd_connection(char *group)
     struct hlist_head *head;
     int key, found = 0;
 
+    if(!lhead.init) {
+        WARN_ONCE("call init_local_logger before rclog\n");
+        return -1;
+    }
+
     if(!group)
         group = "%$";
 
@@ -133,7 +139,7 @@ int send_log(char *group, char *data, int len)
 
     fd = get_logd_connection(group);
     if(fd < 0) {
-        WARN_ONCE("fatal error!logd connection failed!");
+        WARN_ONCE("fatal error!logd connection failed!\n");
         goto failed;
     }
 
@@ -204,6 +210,7 @@ int init_local_logger(char *program)
         pthread_spin_init(&lhead.lock[i], 0);
     }
 
+    lhead.init = 1;
     printf("%s success, program:%s\n", __func__, program);
 
     return 0;

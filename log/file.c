@@ -43,7 +43,7 @@ static int new_file(struct logfile_context *ctx, struct log_file *file)
     char filename[128];
     int max = 0, i, index, fd;
 
-    if(ctx->num >= MAX_LOGFILES) {
+    while(ctx->num >= MAX_LOGFILES) {
         struct log_file *pos, *q = NULL;
         int  times;
 
@@ -60,9 +60,9 @@ static int new_file(struct logfile_context *ctx, struct log_file *file)
             }
 
             pos = q;
+            index = pos->index + 1;
             while(pos) {
-                index = pos->index + 1;
-                if(index > MAXLOGS_FOR_ONE)
+                if(++index > MAXLOGS_FOR_ONE)
                     index = 1;
 
                 snprintf(filename, sizeof(filename), "%s.%d", pos->filename, index);
@@ -90,6 +90,8 @@ static int new_file(struct logfile_context *ctx, struct log_file *file)
             printf("rename file:%s failed:%s!!\n", filename, strerror(errno));
             return -1; 
         }
+        file->num++;
+        ctx->num++;
     }
 
     if((fd = open(file->filename, O_RDWR | O_CREAT, 
@@ -101,8 +103,6 @@ static int new_file(struct logfile_context *ctx, struct log_file *file)
 
     if(++file->index > MAXLOGS_FOR_ONE)
         file->index = 0;
-    file->num++;
-    ctx->num++;
     file->fd = fd;
 
     if(fstat(fd, &stat) < 0) {
@@ -150,6 +150,9 @@ static int get_index(char *filename, int *index, int *count)
 {
     char buf[128];
     int i = 0, c = 0, found = 0;
+
+    if(access(filename, F_OK) == 0 )
+        c++;
 
     do {
         snprintf(buf, sizeof(buf), "%s.%d", filename, i);
@@ -204,8 +207,8 @@ static struct log_file *new_log(char *pro, char *group)
 
     hlist_add_head(&file->list, head);
     get_index(filename, &file->index, &file->num);
-    printf("%s,get index:%d,num:%d\n", filename, file->index, file->num);
     ctx->num += file->num;
+    printf("%s,get index:%d,num:%d, total:%d\n", filename, file->index, file->num, ctx->num);
 
     if((fd = new_file(ctx, file)) < 0) {
         printf("open :%s failed!\n", filename);
@@ -252,6 +255,7 @@ static int scan_subdir(char *path)
         return 0;
     }
 
+    printf("get new program:%s\n", path);
     while((dirent = readdir(dp))) {
 
         if(!strcmp(dirent->d_name, ".") || !strcmp(dirent->d_name, ".."))
