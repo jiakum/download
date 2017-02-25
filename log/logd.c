@@ -506,11 +506,9 @@ static int start_server(char *logpath)
     return event_loop(&server);
 }
 
-static void usage(void)
+static void usage(char *pro)
 {
-
-
-
+    printf("%s [-s] [-d] [-all] [-ex] pro/group/level [-in] pro/group/level \n", pro);
 }
 
 extern int connect_logd(char *program, char *group);
@@ -590,7 +588,7 @@ int main(int argc, char *argv[])
                     return -1;
                 }
             } else
-                usage();
+                usage(argv[0]);
         } else if(!strcmp(argv[i], "-all")) {
             len = snprintf(buf, RCLOG_MAX_PACKET_SIZE - (buf - start), "all=1");
             buf += len + 1;
@@ -599,13 +597,13 @@ int main(int argc, char *argv[])
                 len = snprintf(buf, RCLOG_MAX_PACKET_SIZE - (buf - start), "ex:%s", argv[i]);
                 buf += len + 1;
             } else
-                usage();
+                usage(argv[0]);
         } else if(!strcmp(argv[i], "-in")) {
             if(++i < argc) {
                 len = snprintf(buf, RCLOG_MAX_PACKET_SIZE - (buf - start), "in:%s", argv[i]);
                 buf += len + 1;
             } else
-                usage();
+                usage(argv[0]);
         }
     }
 
