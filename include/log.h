@@ -1,14 +1,14 @@
 #ifndef _RC_LOG_H__
 #define _RC_LOG_H__
 
-#define RCLOG_EMERG 0
-#define RCLOG_ALERT 1
-#define RCLOG_CRIT  2
-#define RCLOG_ERROR 3
-#define RCLOG_WARN  4
+#define RCLOG_EMERG  0
+#define RCLOG_ALERT  1
+#define RCLOG_CRIT   2
+#define RCLOG_ERROR  3
+#define RCLOG_WARN   4
 #define RCLOG_NOTICE 5
-#define RCLOG_INFO  6
-#define RCLOG_DEBUG 7
+#define RCLOG_INFO   6
+#define RCLOG_DEBUG  7
 
 #define RCLOG_DEFAULT_LEVEL RCLOG_INFO
 

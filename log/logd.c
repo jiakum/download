@@ -37,6 +37,7 @@ struct log_server {
 
 #define LOGFILTER_HTABLE_SIZE_INBITS (4)
 #define LOGFILTER_HTABLE_SIZE (1 << LOGD_HTABLE_SIZE_INBITS)
+#define LOGFILTER_MAXSTRLEN (64)
 struct log_filter {
     /* 1 indicate all is included except those in exhead.
      * 0 indicate all is excluded except those in inhead.
@@ -46,11 +47,11 @@ struct log_filter {
     struct hlist_head *inhead;
 
     int (*filter)(struct log_filter *lf, char *pro, char *group, int level);
-    void (*free)(struct log_filter *lf);
+    void (*close)(struct log_filter *lf);
 };
 
 struct filter_str {
-    char pro[64], group[64];
+    char pro[LOGFILTER_MAXSTRLEN], group[LOGFILTER_MAXSTRLEN];
     int level;
     struct hlist_node list;
 };
@@ -78,29 +79,32 @@ static inline uint32_t hashfilter(char *p)
 
 static int get_pgl(char *src, char *pro, char *group, int *level)
 {
-    int i = RCLOG_DEFAULT_LEVEL;
+    int i = RCLOG_DEFAULT_LEVEL, len;
+    char str[16];
 
-    while(*src && *src != '/')
-        *pro++ = *src++;
+    len = 0;
+    while(*src && *src != '/') {
+        if(++len < LOGFILTER_MAXSTRLEN)
+            *pro++ = *src++;
+    }
     *pro = '\0';
 
+    len = 0;
     src++;
-    while(*src && *src != '/')
-        *group++ = *src++;
+    while(*src && *src != '/') {
+        if(++len < LOGFILTER_MAXSTRLEN)
+            *group++ = *src++;
+    }
     *group = '\0';
 
-    if(!*src) {
-        char str[16];
-        int len;
+    src++;
+    len = snprintf(str, sizeof(str), "%s", src);
+    for(i = 0;i < len;i++)
+        str[i] = toupper(str[i]);
 
-        len = snprintf(str, sizeof(str), "%s", src);
-        for(i = 0;i < len;i++)
-            str[i] = toupper(str[i]);
-
-        for(i = 0;i < (int)ARRAY_SIZE(levelstr);i++) {
-            if(!strcmp(str, levelstr[i]))
-                break;
-        }
+    for(i = 0;i < (int)ARRAY_SIZE(levelstr);i++) {
+        if(!strcmp(str, levelstr[i]))
+            break;
     }
 
     *level = i;
@@ -186,9 +190,9 @@ static struct log_filter *alloc_filter(char *command, int len)
         int key;
 
         len = strlen(command);
-        if(len > (int)strlen("all=") && !strncmp(command, "all=", strlen("all="))) {
+        if(len > (int)strlen("all=") && EQUAL_STR(command, "all=")) {
             filter->all = strtol(command + strlen("all="), NULL, 10);
-        } else if(len > (int)strlen("ex") && !strncmp(command, "ex:", strlen("ex:"))) {
+        } else if(len > (int)strlen("ex") && EQUAL_STR(command, "ex:")) {
             struct filter_str *fstr = malloc(sizeof(struct filter_str));
             char *str = command + strlen("ex:");
 
@@ -201,7 +205,7 @@ static struct log_filter *alloc_filter(char *command, int len)
 
             key = hashfilter(str);
             hlist_add_head(&fstr->list, &exhead[key]);
-        } else if(len > (int)strlen("in") && !strncmp(command, "in:", strlen("in:"))) {
+        } else if(len > (int)strlen("in") && EQUAL_STR(command, "in:")) {
             struct filter_str *fstr = malloc(sizeof(struct filter_str));
             char *str = command + strlen("in:");
 
@@ -222,7 +226,7 @@ static struct log_filter *alloc_filter(char *command, int len)
     filter->inhead = inhead;
     filter->exhead = exhead;
     filter->filter = filter_log;
-    filter->free   = free_filter;
+    filter->close  = free_filter;
 
     return filter;
 }
@@ -235,8 +239,8 @@ static void close_client(struct log_client *client)
     if(client->file && client->file->close)
         client->file->close(client->file);
 
-    if(client->filter && client->filter->free)
-        client->filter->free(client->filter);
+    if(client->filter && client->filter->close)
+        client->filter->close(client->filter);
 
     free(client);
 }
@@ -337,7 +341,7 @@ static int parse_packet(struct log_server *server, struct sockaddr_un *from, uns
             left = len;
             while(left > 0) {
                 ret = sendto(server->fd, buf + len - left, left, 0, 
-                      (const struct sockaddr *)&uc->from, sizeof(struct sockaddr_un));
+                      (const struct sockaddr *)&uc->from, sizeof(uc->from));
 
                 if(ret < 0) {
                     if(errno == EINTR)
@@ -508,38 +512,45 @@ static int start_server(char *logpath)
 
 static void usage(char *pro)
 {
-    printf("%s [-s] [-d] [-all] [-ex] pro/group/level [-in] pro/group/level \n", pro);
+    printf("%s [-s] [-d] [-all] [-ex pro/group/level] [-in pro/group/level] \n", pro);
 }
 
 extern int connect_logd(char *program, char *group);
 static int get_log_runtime(char *buf, int len)
 {
-    struct pollfd *entry = malloc(sizeof(*entry) * 16), *start = entry;
-    int fd = connect_logd("logd", "watch"), ret;
+    struct pollfd entry[2];
+    int fd, ret, left = len;
 
+    fd = connect_logd("logd", "watch");
     if(fd < 0) {
         printf("connect server logd failed!\n");
         return -1;
     }
 
-    send(fd, buf, len, 0);
+    while(left > 0) {
+        ret = send(fd, buf + len -left, left, 0);
+        if(ret < 0) {
+            if(errno == EINTR || errno == EAGAIN)
+                continue;
+            return -1;
+        }
+
+        left -= ret;
+    }
 
     while(1) {
-        entry = start;
-        entry->fd = fd;
-        entry->events = POLLIN;
-        entry++;
+        entry[0].fd = fd;
+        entry[0].events = POLLIN;
 
         do {
-            ret = poll(start, entry - start, 10);
+            ret = poll(entry, 1, -1);
             if (ret < 0 && EINTR != errno && errno  != EAGAIN) {
                 printf("%s,fatal error, errno:%d\n", __func__, errno);
                 return -1;
             }
         } while (ret < 0);
 
-        entry = start;
-        if(entry->events & POLLIN) {
+        if(entry[0].events & POLLIN) {
             do {
                 ret = recv(fd, buf, RCLOG_MAX_PACKET_SIZE, 0);
                 if(ret < 0) {
@@ -549,7 +560,7 @@ static int get_log_runtime(char *buf, int len)
                 } else if(ret == 0)
                     return -1;
                 else {
-                    buf[ret] = 0;
+                    buf[ret] = '\0';
                     printf("%s", buf);
                 }
             } while(ret > 0);
@@ -607,9 +618,9 @@ int main(int argc, char *argv[])
         }
     }
 
-    if(!strncmp(task, "start_server", strlen("start_server")))
+    if(EQUAL_STR(task, "start_server"))
         return  start_server(path);
-    else if(!strncmp(task, "getlog", strlen("getlog"))) {
+    else if(EQUAL_STR(task, "getlog")) {
         return get_log_runtime(start, buf - start);
     }
 

@@ -13,7 +13,7 @@ struct epoll_context {
 };      
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
-
+#define EQUAL_STR(s, d) !strncmp(s, d, __builtin_strlen(d))
 
 #define WARN_ONCE(format, ...) ({          \
     static int __warned;     \

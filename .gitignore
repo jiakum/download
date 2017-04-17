@@ -16,3 +16,4 @@ download
 *.orig
 *.rej
 .*.swp
+/log/logd
