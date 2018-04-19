@@ -4,47 +4,51 @@
 #include <stdint.h>
 #include <sys/time.h>
 
-#include "list.h"
 #include "timer.h"
 
-static struct timer timerlist = {
-    .list       =       LIST_HEAD_INIT(timerlist.list),
+struct timerqueue_head timerlist = {
+    .head = RB_ROOT,
+    .next = NULL,
 };
 
-struct timer *add_timer(void *p, int (*func)(struct timer *), int timeout)
+struct timer *add_timer(void *p, int (*fn)(struct timer *), int timeout)
 {
-    struct timer *timer = (struct timer *)malloc(sizeof(*timer));
+    struct timer *t;
 
-    if (!timer) {
-        printf("malloc failed for timer\n");
+    t = (struct timer *)malloc(sizeof(struct timer));
+    if (!t) {
         return NULL;
     }
 
-    timer->func = func;
-    timer->p = p;
-    timer->timeout = get_current_time() + (int64_t)timeout;
+    t->fn = fn;
+    t->p = p;
+    t->state = HRTIMER_STATE_INACTIVE;
 
-    list_add(&timer->list, &timerlist.list);
+    timerqueue_init(&t->node);
+    start_timer(t, timeout);
 
-    return timer;
+    return t;
 }
 
 int process_timer()
 {
-    struct timer *pos, *next;
-    int64_t curr_time = get_current_time();
-    int64_t min = curr_time + 100;
+    struct timerqueue_node *node;
+    struct timer *pos = NULL;
+    int64_t curr_time;
 
-    list_for_each_entry_safe(pos, next, &timerlist.list, list) {
-        if (pos->timeout <= curr_time) {
-            pos->func(pos);
-        }
+    while ((node = timerqueue_getnext(&timerlist))) {
+        pos = container_of(node, struct timer, node);
 
-        if (pos->timeout > curr_time && pos->timeout < min) {
-            min = pos->timeout;
-        }
+        curr_time = get_current_time();
+        if(timer_get_expires(pos) > curr_time)
+            break;
+
+        stop_timer(pos);
+
+        if(pos->fn)
+            pos->fn(pos);
     }
 
-    return (int)(min - curr_time);
+    return pos ? (int)(timer_get_expires(pos) - curr_time) : 1000;
 }
 

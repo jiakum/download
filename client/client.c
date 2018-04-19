@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
 
 #include "common.h"
 #include "timer.h"
@@ -93,66 +94,100 @@ static int handle_data(struct epoll_event *ev, void *data)
     return 0;
 }
 
-static int connect_server(struct timer *timer)
+static int connected_server(struct DwClient *client)
 {
-    struct DwClient *client = timer->p;
     struct DwPacketContext *dpctx;
-    struct sockaddr_in addr;
     struct epoll_event ev;
-    int fd;
-
-    fd = socket(AF_INET, SOCK_STREAM  | SOCK_CLOEXEC, 0);
-    if(fd < 0) {
-        printf("create socket failed:%s!\n", strerror(errno));
-        goto retry;
-    }
-
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port = htons(1212);
-    if(connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        int i;
-        for(i = 0;i < 1;i++) {
-            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
-            rclog("client", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
-            rclog("server", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
-            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
-            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
-            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
-            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
-            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
-            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
-            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
-            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
-            rclog("download", RCLOG_INFO, "connect remote failed:%s!\n", strerror(errno));
-        }
-        close(fd);
-        goto retry;
-    }
+    int fd = client->fd;
 
     dpctx = dw_init_packet(fd_to_io_context(fd, IO_TYPE_SOCKET));
     if(!dpctx) {
         printf("%s . No memory!!!\n", __func__);
         close(fd);
-        goto retry;
+        return -ENOMEM;
     }
 
+    client->epctx->callback = handle_data;
+    client->epctx->data = client;
     ev.events = EPOLLIN;
     ev.data.ptr = client->epctx;
-    if(epoll_ctl(client->epfd, EPOLL_CTL_ADD, fd, &ev) < 0) {
+    if(epoll_ctl(client->epfd, EPOLL_CTL_MOD, fd, &ev) < 0) {
         printf("%s,epoll ctl failed:%s!\n", __func__, strerror(errno));
         dw_free_packet(dpctx);
-        goto retry;
+        return -ENOMEM;
     }
 
-    client->fd = fd;
     client->dpctx = dpctx;
-    stop_timer(timer);
+
+    return 0;
+}
+
+static int connecting_server(struct epoll_event *ev, void *data)
+{
+    struct DwClient *client = data;
+    int ret;
+
+    if(ev->events & EPOLLOUT) {
+        /* socket connect request finished */
+        socklen_t optlen = sizeof(ret);
+        getsockopt (client->fd, SOL_SOCKET, SO_ERROR, &ret, &optlen);
+        if(ret == 0)
+            return connected_server(client);
+        else
+            goto retry;
+    }
+
+    if(ev->events & (EPOLLHUP | EPOLLERR)) {
+        goto retry;
+    }
 
     return 0;
 
 retry:
-    update_timer(timer, 200);
+    if(epoll_ctl(client->epfd, EPOLL_CTL_DEL, client->fd, NULL) < 0) {
+        printf("%s,epoll ctl failed:%s!\n", __func__, strerror(errno));
+    }
+
+    close(client->fd);
+    update_timer(client->timer, 200);
+    return 0;
+}
+
+static int try_connect_server(struct timer *timer)
+{
+    struct DwClient *client = timer->p;
+    struct sockaddr_in addr;
+    struct epoll_event ev;
+    int fd, ret;
+
+    printf("%s\n", __func__);
+    fd = socket(AF_INET, SOCK_STREAM  | SOCK_CLOEXEC, 0);
+    if(fd < 0) {
+        printf("create socket failed:%s!\n", strerror(errno));
+        return -ENOMEM;
+    }
+
+    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(1212);
+    do {
+        ret = connect(fd, (struct sockaddr *)&addr, sizeof(addr));
+    } while(ret < 0 && errno == EINTR);
+
+    client->fd = fd;
+    if(ret < 0 && (errno == EINPROGRESS || errno == EAGAIN)) {
+        client->epctx->callback = connecting_server;
+        client->epctx->data = client;
+        ev.events = EPOLLOUT;
+        ev.data.ptr = client->epctx;
+        if(epoll_ctl(client->epfd, EPOLL_CTL_ADD, fd, &ev) < 0) {
+            printf("%s,epoll ctl failed:%s!\n", __func__, strerror(errno));
+            return -ENOMEM;
+        }
+    } else if(ret == 0) {
+        return connected_server(client);
+    }
 
     return 0;
 }
@@ -165,11 +200,9 @@ int init_client(int epfd, struct epoll_context *epctx)
         return -ENOMEM;
     
     memset(client, 0, sizeof(*client));
-    epctx->callback = handle_data;
-    epctx->data = client;
     client->epfd = epfd;
     client->epctx = epctx;
-    client->timer = add_timer(client, connect_server, 200);
+    client->timer = add_timer(client, try_connect_server, 60 * 1000);
 
     return 0;
 }

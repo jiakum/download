@@ -5,6 +5,8 @@ SOURCES +=  ../src/packet.c \
             ../src/io.c \
             ../src/timer.c \
             ../src/utils.c \
+            ../src/rbtree.c \
+            ../src/timerqueue.c \
             ../src/find_next_bit.c \
             ../src/bitmap.c \
             ../src/hweight.c \

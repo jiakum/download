@@ -10,15 +10,21 @@ extern "C"
 #include <stdint.h>
 #include <sys/time.h>
 
-#include "list.h"
+#include "timerqueue.h"
+
+#define HRTIMER_STATE_INACTIVE  0x00
+#define HRTIMER_STATE_ENQUEUED  0x01
+#define HRTIMER_STATE_CALLBACK  0x02
 
 struct timer {
-    struct list_head    list;
-    int64_t             timeout;    // in millinsecends
+    struct timerqueue_node node;
+    unsigned int        state;
 
-    int                 (*func)(struct timer *timer);
+    int                 (*fn)(struct timer *timer);
     void                *p;
 };
+
+extern struct timerqueue_head timerlist;
 
 static inline int64_t get_current_time_us(void)
 {
@@ -32,19 +38,40 @@ static inline int64_t get_current_time(void)
     return get_current_time_us() / 1000;
 }
 
-static inline void update_timer(struct timer *timer, int timeout)
+static inline int64_t timer_get_expires(struct timer *t)
 {
-    timer->timeout = get_current_time() + (int64_t)timeout;
+    return t->node.expires.tv64;
 }
 
 static inline void stop_timer(struct timer *timer)
 {
-    timer->timeout = INT64_MAX;
+    if(timer->state == HRTIMER_STATE_ENQUEUED)
+        timerqueue_del(&timerlist, &timer->node);
+    timer->state = HRTIMER_STATE_INACTIVE;
+}
+
+static inline void start_timer(struct timer *t, int timeout)
+{
+    if(t->state == HRTIMER_STATE_ENQUEUED)
+        timerqueue_del(&timerlist, &t->node);
+    
+    t->node.expires.tv64 = get_current_time() + (int64_t)timeout;
+    timerqueue_add(&timerlist, &t->node);
+    t->state = HRTIMER_STATE_ENQUEUED;
+}
+
+static inline void update_timer(struct timer *timer, int timeout)
+{
+    stop_timer(timer);
+
+    timer->node.expires.tv64 = get_current_time() + (int64_t)timeout;
+    timerqueue_add(&timerlist, &timer->node);
+    timer->state = HRTIMER_STATE_ENQUEUED;
 }
 
 static inline void del_timer(struct timer *timer)
 {
-    list_del(&timer->list);
+    stop_timer(timer);
     free(timer);
 }
 
