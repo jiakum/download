@@ -1,0 +1,17 @@
+
+
+git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable-rc.git   linux kernel source code
+https://github.com/altercation/solarized.git                               solarized for putty gui
+https://git.ffmpeg.org/ffmpeg.git                                          ffmpeg source code
+git://github.com/chirlu/sox.git                                            sox source code (sound effect algorithm)
+svn://svn.code.sf.net/p/bs2b/code/trunk                                    libbs2b source code (the bauer stereophonic-to-binaural dsp)
+https://github.com/shadeslayer/libnice.git                                 p2p source code
+https://github.com/vigsterkr/libjingle.git                                 stream p2p source code
+https://github.com/pannzh/TurnServer.git                                   turn server source code
+git://github.com/nginx/nginx.git                                           nginx source code (http server)
+https://github.com/wayland-chen/P2PCenter.git                              p2p center code
+https://stun.svn.sourceforge.net/svnroot/stun/stund/trunk                  stun server source code
+https://github.com/netCommonsEU/PeerStreamer-ng                            stream p2p source code
+https://github.com/bminor/glibc.git                                        glibc source code
+https://github.com/mirror/busybox.git                                      busybox source code
+https://github.com/urcu/userspace-rcu.git                                  userspace rcu library source code
