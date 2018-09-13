@@ -23,6 +23,8 @@ int request_gpio(int gpio, int dir);
 int free_gpio_irq(int gpio);
 int request_gpio_irq(int gpio, int type, void (*cb)(int gpio, void *data, int value), void *arg);
 int gpio_direction_output(int gpio, int value);
+int gpio_set_value(int gpio, int value);
+int gpio_get_value(int gpio);
 int gpio_direction_input(int gpio);
 
 

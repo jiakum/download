@@ -75,22 +75,22 @@ static int read_str(char *file, char *buf, int max)
 
 static int is_gpio_ok(int gpio)
 {
-    char buf[64];
+    char path[64];
 
-    snprintf(buf, sizeof(buf), "/sys/class/gpio/gpio%d", gpio);
-    if(access(buf, R_OK | W_OK | X_OK))
+    snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d", gpio);
+    if(access(path, R_OK | W_OK | X_OK))
         return 0;
 
-    snprintf(buf, sizeof(buf), "/sys/class/gpio/gpio%d/direction", gpio);
-    if(access(buf, R_OK | W_OK))
+    snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d/direction", gpio);
+    if(access(path, R_OK | W_OK))
         return 0;
 
-    snprintf(buf, sizeof(buf), "/sys/class/gpio/gpio%d/value", gpio);
-    if(access(buf, R_OK))
+    snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d/value", gpio);
+    if(access(path, R_OK))
         return 0;
 
-    snprintf(buf, sizeof(buf), "/sys/class/gpio/gpio%d/edge", gpio);
-    if(access(buf, R_OK | W_OK))
+    snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d/edge", gpio);
+    if(access(path, R_OK | W_OK))
         return 0;
 
     return 1;
@@ -129,6 +129,14 @@ int gpio_direction_output(int gpio, int value)
     return write_str(value ? "1" : "0", path);
 }
 
+int gpio_set_value(int gpio, int value)
+{
+    char path[64];
+
+    snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d/value", gpio);
+    return write_str(value ? "1" : "0", path);
+}
+
 int gpio_direction_input(int gpio)
 {
     char path[64], value[8];
@@ -138,6 +146,17 @@ int gpio_direction_input(int gpio)
     ret = write_str("in", path);
     if(ret < 0)
         return ret;
+
+    snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d/value", gpio);
+    if(read_str(path, value, sizeof(value)) < 0)
+        return -1;
+
+    return strtol(value, NULL, 0);
+}
+
+int gpio_get_value(int gpio)
+{
+    char path[64], value[8];
 
     snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d/value", gpio);
     if(read_str(path, value, sizeof(value)) < 0)
@@ -203,6 +222,7 @@ int free_gpio_irq(int gpio)
 
             snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d/edge", gpio);
             write_str(trigger_type[GPIO_IRQ_NONE], path);
+            close(gctx->fd);
             free(gctx->epctx);
             free(gctx);
 
@@ -251,7 +271,7 @@ int request_gpio_irq(int gpio, int type, void (*cb)(int , void *, int), void *ar
     if(is_gpio_ok(gpio) == 0)
         return -EBUSY;
 
-    if(type <= 0 || type >= sizeof(trigger_type)/sizeof(trigger_type[0]))
+    if(type <= 0 || type >= (int)(sizeof(trigger_type)/sizeof(trigger_type[0])))
         return -EINVAL;
 
     snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d/edge", gpio);
@@ -343,58 +363,4 @@ static int epoll_event_loop(int fd, int maxevent)
     return 0;
 }
 
-static void gpio_isr(int gpio, void *arg, int value)
-{
-    printf("gpio: %d irq called! value:%d\n", gpio, value);
-}
 
-int main(int argc, char* argv[])
-{
-    int outpinlist[] = { 6, 7 };
-    int inpinlist[] =  { 25, 42, 12, 13 };
-    int     ret, i;
-
-	printf("< OpenLinux: GPIO example >\n");
-	
-    for(i = 0; i < sizeof(outpinlist)/sizeof(outpinlist[0]); i++) 
-    {
-        ret = request_gpio(outpinlist[i], GPIO_DIRECTION_OUT);
-        if(ret != 0)
-        {
-            printf("ql init gpio %d failed: %s\n", outpinlist[i], strerror(errno));
-            break;
-        }
-        printf("< Init GPIO: pin=%d, dir=%d, ret=%d >\n", outpinlist[i], GPIO_DIRECTION_OUT, ret);
-    }
-	
-    for(i = 0; i < sizeof(inpinlist)/sizeof(inpinlist[0]); i++) 
-    {
-        ret = request_gpio(inpinlist[i], GPIO_DIRECTION_IN);
-        if(ret != 0)
-        {
-            printf("ql init gpio %d failed: %s\n", inpinlist[i], strerror(errno));
-            break;
-        }
-        ret = request_gpio_irq(inpinlist[i], GPIO_IRQ_RISING, gpio_isr, NULL);
-        if(ret != 0)
-        {
-            perror("ql request gpio irq failed!\n");
-            break;
-        }
-        printf("< Init GPIO: pin=%d, dir=%d, ret=%d >\n", inpinlist[i], GPIO_DIRECTION_IN, ret);
-    }
-
-    i = 0;
-    while(1) {
-        if(getchar() == 's') {
-
-            printf("close gpio irq:%d\n", inpinlist[i]);
-            free_gpio_irq(inpinlist[i]);
-
-            if(++i > sizeof(inpinlist)/sizeof(inpinlist[0]))
-                break;
-        }
-    }
-
-    return 0;
-}
