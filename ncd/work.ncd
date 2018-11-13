@@ -1,5 +1,5 @@
 <!DOCTYPE NoteCase-File>
-<!--LastNote:4-->
+<!--LastNote:48-->
 <HTML>
 <HEAD>
 <meta content="text/html;charset=UTF-8" http-equiv="Content-Type">
@@ -11,19 +11,16 @@
 <DT>private</DT>
 <!--property:date_created=1524187399-->
 <!--property:date_modified=1524187399-->
-<!--property:expanded-->
 <DD>
 <DL>
 <DT>account</DT>
 <!--property:date_created=1524187408-->
 <!--property:date_modified=1526625799-->
-<!--property:expanded-->
 <DD>
 account and password<DL>
 <DT>personal</DT>
 <!--property:date_created=1524187544-->
 <!--property:date_modified=1524187544-->
-<!--property:expanded-->
 <DD>
 <DL>
 <DT>sina</DT>
@@ -270,7 +267,6 @@ Hello/底下的2个mk文件在repo sync后会被拷贝到代码根目录下；<B
 <DT>gcc</DT>
 <!--property:date_created=1526636599-->
 <!--property:date_modified=1526636599-->
-<!--property:expanded-->
 <DD>
 <DL>
 <DT>attribute</DT>
@@ -942,6 +938,37 @@ export PERL5LIB=$PERL5LIB:/home/mjk/usr/lib/x86_64-linux-gnu/perl/5.22.1
 首先使用“wildcard”函数获取工作目录下的.c文件列表；之后将列表中所有文件名的后缀.c替换为.o。这样我们就可以得到在当前目录可生成的.o文件列表。<BR>
 因此在一个目录下可以使用如下内容的Makefile来将工作目录下的所有的.c文件进行编译并最后连接成为一个可执行文件：
 </DD>
+<DT>atomic</DT>
+<!--property:date_created=1538118894-->
+<!--property:date_modified=1538118907-->
+<DD>
+__sync_fetch_and_add系列的命令，发现这个系列命令讲的最好的一篇文章，英文好的同学可以直接去看原文。Multithreaded simple data type access and atomic variables<BR>
+__sync_fetch_and_add系列一共有十二个函数，有加/减/与/或/异或/等函数的原子性操作函数,__sync_fetch_and_add,顾名思义，先fetch，然后自加，返回的是自加以前的值。以count = 4为例，调用__sync_fetch_and_add(&amp;count,1),之后，返回值是4，然后，count变成了5.<BR>
+有__sync_fetch_and_add,自然也就有__sync_add_and_fetch，呵呵这个的意思就很清楚了，先自加，在返回。他们哥俩的关系与i++和++i的关系是一样的。被谭浩强他老人家收过保护费的都会清楚了。<BR>
+有了这个宝贝函数，我们就有新的解决办法了。对于多线程对全局变量进行自加，我们就再也不用理线程锁了。下面这行代码，和上面被pthread_mutex保护的那行代码作用是一样的，而且也是线程安全的。<BR>
+__sync_fetch_and_add( &amp;global_int, 1 );<BR>
+下面是这群函数的全家福，大家看名字就知道是这些函数是干啥的了。<BR>
+在用gcc编译的时候要加上选项 -march=i686<BR>
+// sam:在我的服务器上，发现不加都可以。<BR>
+<BR>
+type __sync_fetch_and_add (type *ptr, type value);<BR>
+type __sync_fetch_and_sub (type *ptr, type value);<BR>
+type __sync_fetch_and_or (type *ptr, type value);<BR>
+type __sync_fetch_and_and (type *ptr, type value);<BR>
+type __sync_fetch_and_xor (type *ptr, type value);<BR>
+type __sync_fetch_and_nand (type *ptr, type value);<BR>
+type __sync_add_and_fetch (type *ptr, type value);<BR>
+type __sync_sub_and_fetch (type *ptr, type value);<BR>
+type __sync_or_and_fetch (type *ptr, type value);<BR>
+type __sync_and_and_fetch (type *ptr, type value);<BR>
+type __sync_xor_and_fetch (type *ptr, type value);<BR>
+type __sync_nand_and_fetch (type *ptr, type value);<BR>
+ <BR>
+<BR>
+---------------------<BR>
+<BR>
+本文来自 风吹过的时光 的CSDN 博客 ，全文地址请点击：https://blog.csdn.net/hzhsan/article/details/25124901?utm_source=copy 
+</DD>
 <DT>api</DT>
 <!--property:date_created=1528078436-->
 <!--property:date_modified=1528078436-->
@@ -1050,6 +1077,13 @@ c++使用PRID64，需要两步：<BR>
 <BR>
 包含头文件：&lt;inttypes.h&gt;<BR>
 定义宏：__STDC_FORMAT_MACROS，可以通过编译时加-D__STDC_FORMAT_MACROS，或者在包含文件之前定义这个宏。
+</DD>
+<DT>crypto</DT>
+<!--property:date_created=1534321694-->
+<!--property:date_modified=1534321708-->
+<DD>
+node:<BR>
+/proc/crypto
 </DD>
 </DL>
 
@@ -1373,11 +1407,36 @@ make _PLATFORM_=GM8136S_FREERTOS _TYPE_=IPC _BIPC_TYPE_=4G static release<BR>
 linux:<BR>
 make _PLATFORM_=GM8135S4G _TYPE_=IPC static release
 </DD>
+<DT>makejson</DT>
+<!--property:date_created=1537523945-->
+<!--property:date_modified=1537523953-->
+<DD>
+<BR>
+./tools/makejson.sh STM835S8MD_GOv1.82.154.00_18092100.2MP.D2.REOLINK.RF/STM835S8MD_GOv1.82.154.00_18092100.2MP.D2.REOLINK.RF.pak<BR>
+
+</DD>
 <DT>manufacture</DT>
 <!--property:date_created=1526611107-->
 <!--property:date_modified=1526874930-->
 <DD>
 TEST00000BAFR123
+</DD>
+<DT>wifi</DT>
+<!--property:date_created=1534410755-->
+<!--property:date_modified=1534410768-->
+<DD>
+drivers: AR6000<BR>
+drivers/net/wireless/ath/ath6kl/
+</DD>
+<DT>track</DT>
+<!--property:date_created=1541995339-->
+<!--property:date_modified=1542006129-->
+<DD>
+aws s3 cp s3://reolink-storage/develop/devices/uids/2018-11-11.json.gz device_type_lib.json.gz<BR>
+<BR>
+aws s3 cp s3://reolink-storage/develop/logs/p2p/cmds/2018-11-11.json.gz ./<BR>
+<BR>
+aws s3 cp s3://reolink-storage/develop/logs/p2p/conn/2018-11-11.sql.gz ./
 </DD>
 </DL>
 
@@ -1397,6 +1456,12 @@ make _PLATFORM_=GM8136S_FREERTOS _TYPE_=IPC _BIPC_TYPE_=4G static release<BR>
 <BR>
 linux:<BR>
 make _PLATFORM_=Q9X07 _TYPE_=IPC static release
+</DD>
+<DT>usb net</DT>
+<!--property:date_created=1534765811-->
+<!--property:date_modified=1534765823-->
+<DD>
+echo rndis &gt; /sbin/usb/compositions/usb_net_type
 </DD>
 </DL>
 
@@ -1461,6 +1526,15 @@ driver:drivers/hwmon/qpnp-adc-voltage.c<BR>
 sys节点：<BR>
 /sys/devices/qpnp-vadc-8/vbat_sns<BR>
 /sys/devices/qpnp-vadc-8/mpp6_vadc
+</DD>
+<DT>quectel wake lock</DT>
+<!--property:date_created=1534210974-->
+<!--property:date_modified=1534210997-->
+<DD>
+driver:<BR>
+drivers/base/power/quec_wakelock.c<BR>
+node:<BR>
+/proc/quec_wakelock
 </DD>
 </DL>
 
