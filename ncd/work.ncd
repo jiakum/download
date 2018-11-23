@@ -1,5 +1,5 @@
 <!DOCTYPE NoteCase-File>
-<!--LastNote:48-->
+<!--LastNote:5-->
 <HTML>
 <HEAD>
 <meta content="text/html;charset=UTF-8" http-equiv="Content-Type">
@@ -11,11 +11,13 @@
 <DT>private</DT>
 <!--property:date_created=1524187399-->
 <!--property:date_modified=1524187399-->
+<!--property:expanded-->
 <DD>
 <DL>
 <DT>account</DT>
 <!--property:date_created=1524187408-->
 <!--property:date_modified=1526625799-->
+<!--property:expanded-->
 <DD>
 account and password<DL>
 <DT>personal</DT>
@@ -37,6 +39,12 @@ account and password<DL>
 </DD>
 </DL>
 
+</DD>
+<DT>workday</DT>
+<!--property:date_created=1542348700-->
+<!--property:date_modified=1542348718-->
+<DD>
+Abc1@20080702
 </DD>
 <DT>baichuan</DT>
 <!--property:date_created=1524187561-->
@@ -972,7 +980,6 @@ type __sync_nand_and_fetch (type *ptr, type value);<BR>
 <DT>api</DT>
 <!--property:date_created=1528078436-->
 <!--property:date_modified=1528078436-->
-<!--property:expanded-->
 <DD>
 <DL>
 <DT>sched_setaffinity</DT>
@@ -1091,7 +1098,6 @@ node:<BR>
 <DT>kernel</DT>
 <!--property:date_created=1524187843-->
 <!--property:date_modified=1524187843-->
-<!--property:expanded-->
 <DD>
 <DL>
 <DT>make</DT>
@@ -1330,7 +1336,6 @@ void test_i2c()<BR>
 <DT>tracing</DT>
 <!--property:date_created=1524187852-->
 <!--property:date_modified=1524187852-->
-<!--property:expanded-->
 <DD>
 <DL>
 <DT>bpf</DT>
@@ -1399,13 +1404,16 @@ port：9000
 </DD>
 <DT>compile</DT>
 <!--property:date_created=1525745890-->
-<!--property:date_modified=1530760931-->
+<!--property:date_modified=1542096769-->
 <DD>
 rtos:<BR>
 make _PLATFORM_=GM8136S_FREERTOS _TYPE_=IPC _BIPC_TYPE_=4G static release<BR>
 <BR>
+4g linux:<BR>
+make _PLATFORM_=GM8135S4G _TYPE_=IPC static release<BR>
+<BR>
 linux:<BR>
-make _PLATFORM_=GM8135S4G _TYPE_=IPC static release
+make _PLATFORM_=NT9851X8MP _TYPE_=IPC static release
 </DD>
 <DT>makejson</DT>
 <!--property:date_created=1537523945-->
