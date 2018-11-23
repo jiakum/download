@@ -133,7 +133,7 @@ static inline int parse_one(char *buf, char *end, char *target, int maxsize)
 
 int sql_read_talbe_title(char *src, char *end, struct sql_record *record);
 int sql_read_one_record(char **buf, char *end, struct sql_record *record);
-int sql_preinit_elements(struct element *elist, int cn, int maxsize);
+int sql_preinit_record(struct sql_record *record, int maxsize);
 
 
 #ifdef __cplusplus

@@ -97,7 +97,7 @@ int parse_conn_log(const char *filename, unordered_map<string, int> &uidmap,
 
 #ifdef USE_SQL_PARSER
     if(sql_read_talbe_title(start, end, &record) < 0
-        || sql_preinit_elements(record.elist, record.count, 1024) < 0) {
+        || sql_preinit_record(&record, 1024) < 0) {
         goto failed;
     }
 #endif

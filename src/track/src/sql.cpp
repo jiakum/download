@@ -69,6 +69,7 @@ int sql_read_talbe_title(char *src, char *end, struct sql_record *record)
     struct element *el, *elist;
     int i, ret, n = 0, maxcn = 64;
 
+    memset(record, 0, sizeof(*record));
     if((elist = (struct element *)malloc(maxcn * sizeof(*elist))) == NULL)
         return -1;
     memset(elist, 0, maxcn * sizeof(*elist));
@@ -241,13 +242,13 @@ int sql_read_one_record(char **buf, char *end, struct sql_record *record)
     return ret;
 }
 
-int sql_preinit_elements(struct element *elist, int cn, int maxsize)
+int sql_preinit_record(struct sql_record *record, int maxsize)
 {
     char *buf;
     int i;
     
-    for(i = 0;i < cn;i++) {
-        struct element *el = elist + i;
+    for(i = 0;i < record->count;i++) {
+        struct element *el = record->elist + i;
         int size = el->size;
         
         switch(el->type)
