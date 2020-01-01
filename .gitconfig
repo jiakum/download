@@ -1,6 +1,6 @@
 [user]
 	name = Jiakun Ma
-	email = jkma@actions-semi.com
+	email = jiakum@sina.com
 [alias]
 	st = status
 	rt = reset
@@ -35,8 +35,3 @@
 	untracked = cyan
 [branch]
 	autosetuprebase = always
-[sendemail]
-        smtpserver = mail.actions-semi.com
-        smtpserverport = 25
-        smtpuser = dennis.lan
-        chainreplyto = false
