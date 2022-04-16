@@ -2,8 +2,11 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <endian.h>
 
-#define HAR_BUFFER_SIZE (1024 * 1024)
+#include <json-c/json.h>
+
+#define HAR_BUFFER_SIZE (8 * 1024 * 1024)
 
 struct har_context {
     FILE *fp;
@@ -11,147 +14,27 @@ struct har_context {
     int len;
 };
 
-static struct har_context *init_har_context(FILE *fp)
+static struct har_context *init_har_context()
 {
-    struct har_context *hctx = malloc(sizeof (*hctx));
+    struct har_context *hctx = malloc(sizeof(struct har_context));
 
     if (hctx == NULL)
     {
         return NULL;
     }
 
-    hctx->buf = malloc(HAR_BUFFER_SIZE);
+    hctx->buf = (char *)malloc(HAR_BUFFER_SIZE);
     if (hctx->buf == NULL)
     {
         free (hctx);
         return NULL;
     }
 
-    hctx->fp    = fp;
     hctx->start = hctx->buf;
     hctx->end   = hctx->buf + HAR_BUFFER_SIZE;
     hctx->len   = 0;
 
     return hctx;
-}
-
-static int read_har_context (struct har_context *hctx)
-{
-    int len;
-
-    if (hctx->len > 0)
-    {
-        memcpy(hctx->start, hctx->buf, hctx->len);
-    }
-    hctx->buf = hctx->start + hctx->len;
-
-    len = fread(hctx->buf, 1, hctx->end - hctx->buf, hctx->fp);
-
-    hctx->len += len;
-
-    return len > 0 ? len: -1;
-}
-
-static int har_find_str (struct har_context *hctx, char *str)
-{
-    int len = strlen(str), ret = 0;
-
-    if (len == 0)
-    {
-        return -1;
-    }
-
-    while (ret >= 0) 
-    {
-        if (hctx->len < len)
-        {
-            ret = read_har_context (hctx);
-            continue;
-        }
-
-        if (strncmp (hctx->buf, str, len) == 0)
-        {
-            hctx->buf += len;
-            hctx->len -= len;
-            return 0; // string found
-        }
-
-        hctx->buf++;
-        hctx->len--;
-    }
-
-    return ret;  // not found, ie: end of file
-}
-
-static int har_get_text (struct har_context *hctx, char *text, int max_size)
-{
-    const char *str = "\"text\": \"";
-    char *start = text;
-    int ret = 0, i, len = strlen(str);
-
-    if (har_find_str (hctx, "\"response\":") != 0)
-    {
-        return -1;
-    }
-
-    if (har_find_str (hctx, "\"content\":") != 0)
-    {
-        return -1;
-    }
-
-    while (ret >= 0) 
-    {
-        if (hctx->len < len)
-        {
-            ret = read_har_context (hctx);
-            continue;
-        }
-
-        if (*hctx->buf == '}')
-        {
-            break;
-        }
-
-        if (strncmp (hctx->buf, str, len) == 0)
-        {
-            hctx->buf += len;
-            hctx->len -= len;
-            goto found; // string found
-        }
-
-        hctx->buf++;
-        hctx->len--;
-    }
-
-    return ret >= 0 ? 0: ret;
-
-found:
-    while (ret >= 0) 
-    {
-        if (hctx->len < 1)
-        {
-            ret = read_har_context (hctx);
-            continue;
-        }
-
-        if (*hctx->buf == '\"')
-        {
-            return text - start; // end of text
-        }
-
-        if (--max_size <= 0)
-        {
-            printf ("text buffer size too small\n");
-            break;
-        }
-
-        *text = *hctx->buf;
-        text++;
-        hctx->buf++;
-        hctx->len--;
-    }
-
-    return -1;
 }
 
 static void free_har_context(struct har_context *hctx)
@@ -166,14 +49,14 @@ static int usage (char *func)
     return 0;
 }
 
-static int base64_decode (char *base64, int input_size, char *output, int max_size)
+static const char base64_table[] = {
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+    'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+    'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+    'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'
+};
+static int base64_decode (const char *base64, int input_size, char *output, int max_size)
 {
-    static const char table[] = {
-        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
-        'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
-        'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
-        'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'
-    };
     int len = 0, i, prefix = 0;
     char *start = output;
 
@@ -267,11 +150,18 @@ static int base64_decode (char *base64, int input_size, char *output, int max_si
     return len;
 }
 
-static int decode_har(FILE *fp, FILE *out_fp)
+static void detect_box (unsigned char *buf, int len)
 {
-    char *buf = malloc(HAR_BUFFER_SIZE), *src = malloc(HAR_BUFFER_SIZE);
-    struct har_context *hctx;
-    int ret = 0, len, i, skip = 1;
+    unsigned int header = buf[0] | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
+    printf ("ts header:0x%x\n", header);
+}
+
+static int decode_har(char *file_name, FILE *out_fp)
+{
+    unsigned char *buf = (char *)malloc(HAR_BUFFER_SIZE), header[4];
+    struct har_context *hctx = NULL;
+    int ret = 0, len, skip = 10;
+    size_t i;
 
     if (buf == NULL)
     {
@@ -279,37 +169,101 @@ static int decode_har(FILE *fp, FILE *out_fp)
         goto failed;
     }
 
-    hctx = init_har_context(fp);
+    header[0] = 0x0;
+    header[1] = 0x0;
+    header[2] = 0x1;
+    header[3] = 0xBA;
+    hctx = init_har_context();
     if (hctx == NULL)
     {
         goto failed;
     }
 
-    while ((len = har_get_text(hctx, src, HAR_BUFFER_SIZE)) >= 0)
-    {
-        src[len] = 0;
+    struct json_object *root = json_object_from_file(file_name);
+    struct json_object *obj;
 
-        if (len > 0)
-        {
-            if ((len = base64_decode(src, len, buf, HAR_BUFFER_SIZE)) <= 0)
-            {
-                len = 0;
-                continue;
-            }
+    if (root == NULL) {
+        printf ("failed to parse xml file:%s\n", file_name);
+        goto failed;
+    }
 
-            if (--skip >= 0)
-                continue;
+    printf ("get root json obeject type:%d\n", json_object_get_type(root));
+    obj = json_object_object_get (root, "log");
+    if (obj == NULL) {
+        printf ("failed get log json obeject\n");
+        goto failed;
+    }
+    root = obj;
 
-            if (fwrite(buf, len, 1, out_fp) < 0)
-            {
-                goto failed;
+    obj = json_object_object_get (root, "version");
+    printf ("get version json obeject type:%d\n", json_object_get_type(obj));
+
+    obj = json_object_object_get (root, "entries");
+    printf ("get entries json obeject type:%d\n", json_object_get_type(obj));
+
+    struct array_list *list = json_object_get_array(obj);
+    if (list == NULL) {
+        printf ("failed get array of entries json obeject\n");
+        goto failed;
+    }
+    printf ("got length:%ld, size:%ld entries, %ld\n", list->length, list->size, json_object_array_length(obj));
+
+    for (i = 0;i < list->length;i++) {
+        struct json_object *entry, *request, *response, *content;
+
+        entry = list->array[i];
+        request = json_object_object_get (entry, "request");
+        if (request == NULL) {
+            printf ("failed get request of json obeject\n");
+            continue;
+        }
+
+        response = json_object_object_get (entry, "response");
+        if (response == NULL) {
+            printf ("failed get response of json obeject\n");
+            continue;
+        }
+
+        content = json_object_object_get (response, "content");
+        if (content == NULL) {
+            printf ("failed get content of json obeject\n");
+            continue;
+        } else {
+            struct json_object *sizeobj, *typeobj, *textobj;
+            sizeobj = json_object_object_get(content, "size");
+            typeobj = json_object_object_get(content, "mimeType");
+            textobj = json_object_object_get(content, "text");
+
+            if ((sizeobj != NULL)
+                    && (typeobj != NULL)
+                    && (textobj != NULL)
+                    && (json_object_get_type(sizeobj) == json_type_int)
+                    && (json_object_get_type(typeobj) == json_type_string)
+                    && (json_object_get_type(textobj) == json_type_string)) {
+                if (strcmp(json_object_get_string(typeobj), "video/mp2t") == 0) {
+                    if ((len = base64_decode(json_object_get_string(textobj), strlen(json_object_get_string(textobj)), buf, HAR_BUFFER_SIZE)) > 0) {
+                        if (fwrite(header, 4, 1, out_fp) <= 0)
+                        {
+                            printf ("write ouput file failed\n");
+                            break;
+                        }
+                        if (fwrite(buf, len, 1, out_fp) <= 0)
+                        {
+                            printf ("write ouput file failed\n");
+                            break;
+                        }
+                        detect_box (buf, len);
+                        break;
+                    }
+                }
+                printf ("get response size:%d, type:%s, text size:%ld, len:%d\n",
+                        json_object_get_int(sizeobj), json_object_get_string(typeobj), strlen(json_object_get_string(textobj)), len);
             }
         }
     }
 
 failed:
     free (buf);
-    free (src);
     if (hctx)
     {
         free_har_context(hctx);
@@ -343,11 +297,12 @@ int main(int argc, char **argv)
     {
         return usage (argv[0]);
     }
+    fclose(fp);
 
     if ((out_fp = fopen(output, "w+")) == NULL)
     {
         return usage (argv[0]);
     }
 
-    return decode_har (fp, out_fp);
+    return decode_har (input, out_fp);
 }
