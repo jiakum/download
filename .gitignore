@@ -6,6 +6,7 @@
 /.config
 *.depend
 *.o
+*.d.1
 *.out
 /tags
 /*.patch

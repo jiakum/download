@@ -1,7 +1,7 @@
 
-TARGETS += test record
+TARGETS += edid
 
-test-y := test.o empty.o
 record-y := record.o
+edid-y := edid.o
 
 include config.mk
