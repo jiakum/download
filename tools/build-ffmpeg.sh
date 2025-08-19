@@ -89,11 +89,11 @@ then
         echo "$CWD/$SOURCE/configure" \
             "--target-os=darwin"\
             "--arch=$ARCH \
-            "--cc="$CC"" \
+            "--cc=\"$CC\" \
             "$CONFIGURE_FLAGS" \
-            "--extra-cflags="$CFLAGS"" \
-            "--extra-ldflags="$LDFLAGS"" \
-            "--prefix="$THIN/$ARCH"
+            "--extra-cflags=\"$CFLAGS\"" \
+            "--extra-ldflags=\"$LDFLAGS\"" \
+            "--prefix=\"$THIN/$ARCH\""
 
 		TMPDIR=${TMPDIR/%\/} $CWD/$SOURCE/configure \
 		    --target-os=darwin \
@@ -105,7 +105,8 @@ then
 		    --prefix="$THIN/$ARCH" \
 		|| exit 1
 
-		make -j8 install $EXPORT || exit 1
+        make V=1 -j8 install $EXPORT || exit 1
+        find . -name "*.o.json" -exec sed -e '1s/^/[\n/' -e '$s/,$/\n]/' {}  > compile_commands.json \;
 		cd $CWD
 	done
 fi
